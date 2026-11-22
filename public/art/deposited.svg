@@ -1,4 +1,10 @@
 <svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="402.17" height="247.196" viewBox="0 0 402.17 247.196" fill="none" xmlns="http://www.w3.org/2000/svg">
+<style>
+@media (prefers-reduced-motion: no-preference) {
+  #Group_2 { animation: seal-slip 200ms ease-out both; }
+  @keyframes seal-slip { from { transform: translateY(-22px); opacity: .75 } to { transform: translateY(0); opacity: 1 } }
+}
+</style>
 <g id="Group">
 <path id="Vector" d="M0 137.156L193.88 61.1765L402.17 118.816L204.36 201.346L0 137.156Z" fill="#465B4B"/>
 <path id="Vector_2" d="M0 137.156L204.36 197.416V247.196L0 185.626V137.156Z" fill="#34473B"/>
