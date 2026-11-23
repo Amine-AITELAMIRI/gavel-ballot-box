@@ -9,7 +9,19 @@ import { prerender } from './prerender.ts'
 
 const appDir = fileURLToPath(new URL('.', import.meta.url))
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => ({
+  server:
+    mode === 'review' && process.env.GAVEL_LOCAL_ISSUER
+      ? {
+          proxy: {
+            '/__review/listing': {
+              target: process.env.GAVEL_LOCAL_ISSUER,
+              changeOrigin: true,
+              rewrite: () => '/listing',
+            },
+          },
+        }
+      : undefined,
   plugins: [
     react(),
     generouted(),
@@ -20,6 +32,30 @@ export default defineConfig({
     // the generated app and keep local dev/test startup deterministic.
     cloudflare({
       inspectorPort: false,
+      ...(command === 'serve' &&
+      mode === 'review' &&
+      process.env.GAVEL_LOCAL_ISSUER
+        ? {
+            remoteBindings: false,
+            persistState:
+              process.env.GAVEL_LOCAL_TEST === '1'
+                ? false
+                : { path: '.wrangler/gavel-review/desktop' },
+            config: {
+              vars: {
+                APP_NAME: 'gavel-ballot-box',
+                DEEPSPACE_APP_ID: 'gavel-local-review',
+                AUTH_WORKER_URL: process.env.GAVEL_LOCAL_ISSUER,
+                AUTH_JWT_ISSUER: process.env.GAVEL_LOCAL_ISSUER,
+                AUTH_JWT_PUBLIC_KEY: process.env.GAVEL_LOCAL_PUBLIC_KEY!,
+                API_WORKER_URL: process.env.GAVEL_LOCAL_ISSUER,
+                PLATFORM_WORKER_URL: process.env.GAVEL_LOCAL_ISSUER,
+                APP_OWNER_JWT: 'local-provider-fixture',
+                OWNER_USER_ID: 'preview-Organizer',
+              },
+            },
+          }
+        : {}),
     }),
     // The app id `define`, the preview-secret cleanup, and the client dedupe
     // hint — all shipped by the SDK so a fix to any of them arrives with a
@@ -64,4 +100,4 @@ export default defineConfig({
     // Dev-only; `vite build` ignores optimizeDeps.
     entries: ['./index.html', './src/pages/**/*.tsx'],
   },
-})
+}))
