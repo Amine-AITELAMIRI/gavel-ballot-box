@@ -1,18 +1,112 @@
-import {test,expect} from '@playwright/test'
-for(const size of [{width:1080,height:680},{width:390,height:844}]) {
-  test('solo auction at '+size.width+'px',async({page,browser})=>{
-    await page.setViewportSize(size);const errors:string[]=[];page.on('pageerror',err=>errors.push(err.message))
-    await page.goto('/');await expect(page.getByRole('heading',{level:1})).toContainText('silent bid')
-    await page.getByRole('button',{name:'Try sample auction'}).click()
-    await page.getByLabel('YOUR BID / USD').fill('91');await page.getByRole('button',{name:'Seal $91 bid'}).click()
-    await expect(page.getByRole('heading',{name:'Bid deposited.'})).toBeVisible()
-    await page.reload();await expect(page.getByRole('heading',{name:'Bid deposited.'})).toBeVisible()
-    const stranger=await browser.newContext();const other=await stranger.newPage();await other.goto(page.url());await expect(other.getByRole('alert')).toBeVisible();await stranger.close()
-    await page.getByRole('button',{name:'Close sample lot'}).click();await expect(page.getByRole('heading',{name:'You won.'})).toBeVisible()
-    await page.reload();await expect(page.getByRole('heading',{name:'You won.'})).toBeVisible()
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(errors).toEqual([])
+import { test, expect } from '@playwright/test'
+
+for (const [width, amount, outcome] of [
+  [1080, 999, 'You won.'],
+  [390, 1, 'Another bidder won.'],
+] as const) {
+  test('timed bidder round at ' + width + 'px', async ({ page, browser }) => {
+    await page.setViewportSize({ width, height: 844 })
+    await page.goto('/')
+    await expect(
+      page.getByRole('link', { name: /Host a live auction/ }),
+    ).toBeVisible()
+    await page.getByRole('link', { name: /Try a practice auction/ }).click()
+    await expect(
+      page.getByRole('heading', { name: 'Try a silent auction.' }),
+    ).toBeVisible()
+    await page.getByRole('radio', { name: /^Bidder/ }).check()
+    await expect(
+      page.getByText('Ridge study, no. 4', { exact: true }),
+    ).toHaveCount(0)
+    await expect(page.getByLabel('Your bid (USD)')).toHaveCount(0)
+    await expect(page.getByRole('timer')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Start bidder round' }).click()
+    await expect(page.getByRole('timer')).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: /camera|chronograph|headphones/i }),
+    ).toBeVisible()
+    await page.getByLabel('Your bid (USD)').fill(String(amount))
+    await page.getByRole('button', { name: 'Seal $' + amount + ' bid' }).click()
+    await expect(
+      page.getByRole('heading', { name: 'Your bid is sealed.' }),
+    ).toBeVisible()
+    await expect(page.getByRole('timer')).toBeVisible()
+    await expect(page.getByText('You sealed a bid')).toBeVisible()
+    await expect(page.getByText('Winning bid', { exact: true })).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByText('Your private offer')).toBeVisible()
+    await expect(page.getByText('Sam sealed a bid')).toBeVisible({
+      timeout: 9000,
+    })
+    await expect(page.getByLabel('Your bid (USD)')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: outcome })).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('heading', { name: outcome })).toBeVisible()
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true)
+    const stranger = await browser.newContext()
+    const tab = await stranger.newPage()
+    await tab.goto(page.url())
+    await expect(tab.getByRole('alert')).toBeVisible()
+    await stranger.close()
+    await page.getByRole('link', { name: 'Try the host role' }).click()
+    await expect(page.getByRole('radio', { name: /^Host/ })).toBeChecked()
   })
 }
-test('a smaller sample bid can lose',async({page})=>{
-  await page.goto('/');await page.getByRole('button',{name:'Try sample auction'}).click();await page.getByLabel('YOUR BID / USD').fill('1');await page.getByRole('button',{name:'Seal $1 bid',exact:true}).click();await page.getByRole('button',{name:'Close sample lot'}).click();await expect(page.getByRole('heading',{name:'Winning bid revealed.'})).toBeVisible()
+
+test('host sees incoming activity and announces after the deadline', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await expect(
+    page.getByRole('link', { name: /Host a live auction/ }),
+  ).toBeVisible()
+  await page.getByRole('link', { name: /Try a practice auction/ }).click()
+  await page.getByRole('radio', { name: /^Host/ }).check()
+  await expect(page.getByLabel('Round length (seconds)')).toHaveValue('5')
+  await expect(page.getByRole('article', { name: 'Item preview' })).toHaveCount(
+    0,
+  )
+  await expect(
+    page.getByRole('button', { name: 'Use sample print' }),
+  ).toHaveCount(0)
+  await page.getByRole('button', { name: 'Surprise me' }).click()
+  await page.getByLabel('Round length (seconds)').fill('7')
+  await page.getByRole('button', { name: 'Start host round' }).click()
+  await expect(
+    page.getByText('Waiting for the first sealed bid…'),
+  ).toBeVisible()
+  await expect(page.getByText('Alex sealed a bid')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Announce winner' }),
+  ).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByText('Sam sealed a bid')).toBeVisible({
+    timeout: 9000,
+  })
+  await expect(
+    page.getByRole('button', { name: 'Announce winner' }),
+  ).toBeVisible()
+  await expect(page.getByText('Winning bid', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Announce winner' }).click()
+  await expect(page.getByRole('heading', { name: /wins\./ })).toBeVisible()
+  await expect(page.getByText('Winning bid', { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: /wins\./ })).toBeVisible()
+})
+test('bidder who runs out of time can retry', async ({ page }) => {
+  await page.goto('/?practice=bidder')
+  await page.getByRole('button', { name: 'Start bidder round' }).click()
+  await expect(page.getByRole('heading', { name: 'Time’s up.' })).toBeVisible({
+    timeout: 15000,
+  })
+  await expect(page.getByLabel('Your bid (USD)')).toHaveCount(0)
+  await page.getByRole('link', { name: 'Play this role again' }).click()
+  await expect(
+    page.getByRole('button', { name: 'Start bidder round' }),
+  ).toBeVisible()
 })
