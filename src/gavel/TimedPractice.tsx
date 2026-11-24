@@ -87,7 +87,7 @@ export function PracticeSetup({
                   <small>
                     {option === 'bidder'
                       ? fromHost
-                        ? 'Bid on your host item in a new 10-second round.'
+                        ? `Bid on your host item in a new ${BIDDER_SECONDS}-second round.`
                         : 'Enter to reveal a surprise item. You’ll have 20 seconds to seal your bid.'
                       : 'Choose the item and timer, watch sealed bids arrive, then announce the winner.'}
                   </small>
