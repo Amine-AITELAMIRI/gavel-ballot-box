@@ -225,7 +225,14 @@
 }
 .g-page button:disabled {
   opacity: 0.65;
-  cursor: wait;
+  cursor: default;
+}
+/* Why: the primary action is disabled until an item exists, so say what is
+   missing rather than leaving a dimmed button with no explanation. */
+.g-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--g-muted);
 }
 .g-link,
 .g-tools a {

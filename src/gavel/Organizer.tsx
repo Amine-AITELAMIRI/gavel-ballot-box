@@ -128,6 +128,9 @@ function SharedItemFields({
         </button>
       </fieldset>
       {children}
+      {!manual && !selected && (
+        <p className="g-hint">Pick an item above, or enter the details by hand.</p>
+      )}
       <button
         type="submit"
         className="g-action"
