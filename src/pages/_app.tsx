@@ -10,32 +10,25 @@
  * under src/pages/(app)/ (or (app)/(protected)/ to also require sign-in).
  * See https://docs.deep.space/guides/authentication § "Mixed (default)".
  *
- * ToastProvider is local UI state (src/components/ui), not a network surface,
- * so it's safe to mount here for every page.
+ * The app mounts no UI primitives kit: Gavel's surfaces are bespoke (see
+ * src/gavel/studio.css), and its feedback is injected live status regions
+ * rather than toasts.
  */
 
 import { Suspense } from 'react'
 import { Outlet, useRouteError } from 'react-router-dom'
 import { ErrorScreen } from '../components/ErrorScreen'
-import { ToastProvider, TooltipProvider } from '@/components/ui'
 
 export default function App() {
   return (
-    <ToastProvider>
-      {/* The single TooltipProvider: owns the hover delay for every Tooltip
-          and groups them so adjacent triggers switch instantly. Tune delay
-          here — per-Tooltip providers would shadow it (see ui/Tooltip.tsx). */}
-      <TooltipProvider>
-        {/* data-testid="app-root" is the canonical "app shell mounted" hook,
-            present on every page (static and dynamic). Don't rename without
-            updating templates/tests. */}
-        <div data-testid="app-root" className="min-h-screen bg-background text-foreground">
-          <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-muted-foreground">Loading...</div>}>
-            <Outlet />
-          </Suspense>
-        </div>
-      </TooltipProvider>
-    </ToastProvider>
+    // data-testid="app-root" is the canonical "app shell mounted" hook, present
+    // on every page (static and dynamic). Don't rename without updating
+    // templates/tests.
+    <div data-testid="app-root" className="min-h-screen bg-background text-foreground">
+      <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-muted-foreground">Loading...</div>}>
+        <Outlet />
+      </Suspense>
+    </div>
   )
 }
 
