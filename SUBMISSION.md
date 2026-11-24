@@ -33,6 +33,9 @@ uploads lose to the seller's own photo that Exa already found. Messaging duplica
 the lot page. Bid withdrawal needs a bid state machine and changes the product, not
 just the code.
 
+Four is what these flows needed rather than a number to reach: each one removes a
+decision from the organizer instead of adding a feature to the list.
+
 ## The main tradeoff
 
 The SDK's records API would have given realtime and an RBAC boundary for free over
