@@ -15,8 +15,9 @@ const appDir = fileURLToPath(new URL('.', import.meta.url))
 //      tests/*.spec.ts and fail. Explicit unit-test paths keep the runners
 //      separate; Playwright runs via `npm test` / tests/playwright.config.ts.
 //
-// Unit tests live next to their source. The Node-only prerender test stays at
-// the root so it does not enter the browser/Worker TypeScript project in src/.
+// The Node-only suites (prerender, auction) stay at the root: src/ is the
+// browser/Worker TypeScript project, so a test there that imports `node:sqlite`
+// lands in the wrong lib and fails type-check.
 export default defineConfig({
   // Same app id the bundle is built with, from the same wrangler config —
   // so a unit test importing src/constants.ts sees what the browser will.
@@ -28,7 +29,7 @@ export default defineConfig({
   },
   test: {
     // Unit tests only; tests/*.spec.ts are Playwright suites run separately.
-    include: ['auction.test.ts', 'prerender.test.ts', 'src/**/*.{test,spec}.{ts,tsx}'],
+    include: ['*.test.ts', 'src/**/*.{test,spec}.{ts,tsx}'],
     environment: 'node',
   },
 })

@@ -1,5 +1,15 @@
 # AGENTS.md
 
+## In this repo
+
+- `npm run build` first on a clean checkout. It generates `src/router.ts`, which
+  is gitignored, so a bare `tsc` cannot resolve the router.
+- `npm run test:review` needs the loopback sign-in stand-in, which the platform
+  runner does not boot: `npx deepspace test run all` reports those specs skipped.
+- History is on GitHub as well as the platform, under the same commit messages.
+- `docs/permissions.md` and `docs/budget.md` are the two tables to keep honest;
+  a rule that is only in a component is a bug.
+
 Read <https://docs.deep.space/llms.txt>, then fetch the relevant documentation
 page as Markdown by appending `.md`. The installed package types and CLI
 `--help` describe the exact version in this project. Use your existing HTTP,

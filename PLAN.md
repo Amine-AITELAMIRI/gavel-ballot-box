@@ -1,6 +1,12 @@
 # Gavel
 
-Build the selected Ballot Box design. A visitor tries one sample lot with one server-seeded rival, enters an amount, seals it, and closes their own room. A signed-in organizer can create an auction, add lots and share a link. A signed-in bidder can only raise their own bid before close.
+The plan this was built against. `README.md` is the current state where the two
+differ.
+
+Build the selected Ballot Box design. A visitor tries one sample lot against a few
+server-seeded rivals, enters an amount, seals it, and closes their own room. A
+signed-in organizer can create an auction, add lots and share a link. A signed-in
+bidder can only raise their own bid before close.
 
 The four domain entities are auctions, lots, bids and results. Only publish the winner, amount and count. Resolve close, bid validation and winner selection in one storage transaction. Server time controls the deadline. Tie goes to the earliest accepted bid at the tied amount.
 

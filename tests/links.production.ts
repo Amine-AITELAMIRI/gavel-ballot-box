@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test'
 
 const room = 'a-00000000-0000-4000-8000-000000000001'
 const screens = [
-  { path: '/', title: 'Silent auctions', landing: true },
-  { path: '/?utm_source=review', title: 'Silent auctions', landing: true },
+  { path: '/', title: 'Sealed bids, one winner.', landing: true },
+  { path: '/?utm_source=review', title: 'Sealed bids, one winner.', landing: true },
   { path: '/?practice=bidder', title: 'Try a silent auction.' },
   { path: '/?practice=host', title: 'Try a silent auction.' },
   { path: '/?host=1', title: 'Set up your auction.' },

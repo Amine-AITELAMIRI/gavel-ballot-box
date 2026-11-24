@@ -1,42 +1,103 @@
 # Gavel
 
-Gavel is a sealed-bid silent auction. Try a single sample lot on your own, or host an auction and invite bidders. Each bidder can raise their own offer until the server closes the lot. Only the winner and winning amount become public.
+Sealed-bid silent auctions. Every offer is private, one server clock decides when
+a lot closes, and only the winner and the winning amount are ever published.
 
-## Local review
+- **Live:** https://gavel-ballot-box.app.space
+- **Try it alone, no account:** https://gavel-ballot-box.app.space/?practice=1
+- **Host side:** https://gavel-ballot-box.app.space/?host=1
 
-Run `npm ci --legacy-peer-deps` with a supported Node and npm version (see `package.json`), then `npm run review`. Open http://127.0.0.1:5198 on the same computer. The local review runs the React app, Worker, SQLite-backed Durable Object, and scheduled settlement. Login, catalog search, text, generated illustration and outgoing email use local fixtures. All review data stays on the machine.
-
-Choose **Try a practice auction** on the homepage, then pick your role. As bidder, start a 10-second round and seal one whole-dollar offer alongside three simulated bidders. Your private receipt and the live activity feed stay visible until the full ten seconds elapse, then the winner appears. As host, choose the item and set a 5–60 second timer (default 5), watch three simulated bids arrive, then announce the winner. The server owns the deadline, scheduled offers and result. Refreshing resumes the same round.
-
-**Host a live auction** opens shared auction setup. Setup stays in the tab until **Open auction** commits the auction and first item together. Leaving or refreshing discards the unfinished form. Choose the Organizer profile, name the auction, pick a duration and choose **Surprise me**, find a specific item, or enter item details manually. Generated items keep their photo, name and description on everyone’s bidder page. Hosts and bidders can opt into email notices and enter a notification address. The host dashboard shows the bidder link and the number of sealed bids for each selected item. Its bidder preview is read-only. To test an invitation on this computer, open the link in a private window and choose Alice or Bob. As host, you can add items and close bidding on each one independently. Items still open at the deadline close automatically. A signed-in bidder can return from the homepage to their receipt or result. The results keep the original item details and explain a tied losing offer. The organizer can illustrate the item under **Optional item tools**. Restarting the preview requires choosing the profile again. Auction records persist locally.
+Bidder practice runs a real 20-second round against three simulated bidders. Host
+practice walks the setup and the announce. Neither needs a sign-in, and neither
+writes anything outside that practice room.
 
 ## How it works
 
 | Part | Responsibility |
 | --- | --- |
-| DeepSpace auth and actions | Verify bearer tokens for hosted auctions. The worker derives each bidder's identity from the verified claims. |
-| Auction Durable Object | Owns four domain tables: auctions, lots, bids and results. Each bid and close runs in a synchronous SQLite transaction. |
-| Server-side views | Return only the caller's bid. Even the organizer receives no other bidder's amount before settlement. |
-| CronRoom | Runs a minute sweep to settle expired lots and process opted-in email notices. Bidding checks the server clock on every write. |
-| Presence | Shows the number of connected viewers on a shared lot. Room data refreshes every five seconds. |
-| Integration proxy | Exa finds the seller’s listing and photo. Anthropic describes the item. Gemini supplies optional art. DeepSpace email handles optional notices. The local review uses fixtures for these providers. |
+| Auth and actions | Bids and closes on a shared auction go through a DeepSpace action, which rejects a cookie-only session. The worker derives identity from verified claims and nothing else. |
+| Auction Durable Object | Owns four domain tables: auctions, lots, bids and results. Each bid and close runs in a synchronous SQLite transaction, so the deadline, the raise rule and the settlement are decided in one write. |
+| Server-side views | Return only the caller's own bid. Even the organizer gets no other bidder's amount before settlement. |
+| CronRoom | One-minute sweep. Settles expired lots, then drains queued email notices. Settlement is idempotent, so a request crossing the deadline first makes the tick a no-op. |
+| Presence | Connected-viewer count on a shared lot. Room data repolls every five seconds. |
+| Integrations | Exa for the seller's listing and photo, Anthropic to pick and describe one, Gemini for optional art, DeepSpace email for opt-in notices. |
 
-Highest bid wins. Equal bids go to the person who first reached that amount. A repeated close returns the recorded result. The solo demo and hosted rooms share these rules.
+Highest bid wins. Equal bids go to whoever reached that amount first, resolved by
+an autoincrementing `seq` rather than by arrival time. A repeat close returns the
+recorded result. Practice and shared auctions run the same rules through the same
+code — practice differs only in who may act, not in what the rules are.
 
 ## Decisions and limits
 
-Bids stay inside private SQLite tables behind the auction service. A single transaction can compare an offer, check the deadline and settle against concurrent requests. This design uses a custom Durable Object and server-side views in place of four browser-subscribed SDK collections. One object currently holds all auctions. At larger scale it would need partitioning and a separate design for global quotas.
+Bids live in private SQLite tables behind a custom Durable Object, and the
+browser receives hand-built views instead of subscribing to four SDK collections.
+That is the main tradeoff. It costs the SDK's realtime ergonomics and a lot of
+scaffold: realtime is a five-second poll, and the client reimplements what the
+records API would have given free. It buys the thing this product is about —
+only a transaction can compare an offer, check the deadline and settle against a
+concurrent writer, and the privacy rule is exactly the part that would break if
+each collection were read directly by the browser.
 
-In host practice, choose **Surprise me**, or describe an item to auction. After announcing the winner, the host can try a new bidder round with that same item. Standalone bidder practice draws from the same surprise-item search as the host. The ten-second timer starts after the item is ready, and refreshing keeps the same item. Bidders see the item name and description beneath its photo. Hosts can start as soon as the item appears. Repeating the same custom search and rarity in the same session can reuse the item for one hour. Discovery allows 18 requests per session or account and 120 total per day.
+One object holds every auction, which is what makes a cross-room read like the
+receipt list a single query. The cost is serialisation on one object; sharding by
+room is the next step if it ever matters.
 
-Organizer assistance is capped at three requests per account per day and twelve app-wide. The mail queue caps sends at forty per day. An uncertain mail delivery is recorded for inspection, so an automatic retry cannot send a duplicate. No delivery-status dashboard is included.
+Deliberately out of scope: payments (no money moves), photo uploads (sellers
+already have better photos than a phone shot), messaging (the lot page is the
+conversation), and bid withdrawal before close (a sealed offer is a commitment).
+The generated illustration is labelled a placeholder.
 
-Payments, bid withdrawals, uploads, and messaging are outside the auction flow. The generated illustration is labeled as a placeholder. Live provider quality, billing, Google OAuth and delivery are pending separate end-to-end verification. This is a local review build.
+Quotas are all daily and all server-side: 18 discovery calls per session or
+account and 120 app-wide, 24 photo lookups per account and 120 app-wide, 3
+illustrations per account and 12 app-wide, 40 queued emails. An uncertain mail
+delivery is recorded as unconfirmed and never retried, so a retry cannot send a
+duplicate. There is no delivery dashboard.
+
+## Where things are
+
+| Path | |
+| --- | --- |
+| `src/gavel/store.ts` | Tables, quota counters, view builder, transactional bid and settle |
+| `src/gavel/room.ts` | The Durable Object: command dispatch, provider calls, notice delivery |
+| `src/gavel/routes.ts` | HTTP in front of it: origin, content type, body caps, cookie actor |
+| `src/actions/index.ts` | Signed bid and close entry point |
+| `src/gavel/discovery.ts` | Listing search, selection prompt, photo resolution |
+| `src/gavel/Studio.tsx` | The single page, switched by `?room=` / `?host=` / `?practice=` |
+| `src/gavel/studio.css` | The whole surface; `themes.css` carries the `ballot` palette |
+| `auction.test.ts` | The bid rules, incl. privacy, deadline, tie order |
+| `SUBMISSION.md` | The writeup: what this is, the tradeoff, what was verified |
+| `NOTES.md` | Build log in order, including what is still open |
 
 ## Checks
 
-- `npm run type-check` and `npm run lint`
-- `npm run test:unit` for the bidding rules, deadline, tie order, notifications and prerendering
-- `npm run test:review` for isolated local browser tests, including three separate profiles and desktop/phone sample flows. This uses installed Chrome and a second loopback server with temporary data.
-- `npm run build` for a local production build
-- `npm run test:production` builds the app and checks the initial HTML and first screen for direct links, including bidder invitations.
+```sh
+npm ci
+npm run build          # also generates src/router.ts, which is gitignored
+npm run type-check
+npm run lint
+npm run test:unit      # bid rules, deadline, tie order, notices, prerender
+npm run test:review    # Playwright: isolated profiles, desktop and phone
+npm run test:production # the public entry points, against the deployment
+```
+
+`npm run test:review` and the two collab specs need the loopback sign-in
+stand-in, so they only run under that command: `npx deepspace test run all`
+reports them as skipped rather than failing them.
+
+`npm run build` must come before `type-check` on a fresh clone: `src/router.ts` is
+produced by generouted at build time, so a bare `tsc` on a clean checkout cannot
+resolve the router.
+
+Requires Node 22 and npm 11.6 or newer (see `engines`); older npm crashes
+resolving the template's peer dependencies.
+
+## Local run
+
+```sh
+npx deepspace auth login     # once
+npm run dev                  # http://127.0.0.1:5173
+```
+
+`npm run review` instead starts an offline build on http://127.0.0.1:5198 with
+local fixtures for OAuth, catalog search, text, illustration and email, on top of
+a throwaway SQLite database. Nothing leaves the machine.

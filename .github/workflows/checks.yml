@@ -1,0 +1,27 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # `engines` requires npm 11.6+; the Node 22 image still ships npm 10.
+      - run: npm install -g npm@11
+      - run: npm ci
+      # The build generates src/router.ts (gitignored, generouted), so every
+      # type-aware step has to come after it on a clean checkout.
+      - run: npm run build
+      - run: npm run type-check
+      - run: npm run lint
+      # Unit suite only; the Playwright suites need a browser and the local
+      # review server.
+      - run: npm run test:unit
