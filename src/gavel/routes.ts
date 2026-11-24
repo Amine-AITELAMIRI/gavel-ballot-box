@@ -5,6 +5,9 @@ import { resolveAuth } from '../server/http-routes'
 import { auctionStub, guest } from './room'
 import type { Actor } from './model'
 
+/** Room ids are `s-<uuid>` (visitor practice) or `a-<uuid>` (shared auction).
+ *  The prefix is checked, not the length, so a typo cannot reach the DO and the
+ *  mode is decided in one place. */
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/
 export function registerAuctions(app: Hono<AppContext>) {
   app.get('/api/gavel/receipts', async (c) => {
@@ -36,6 +39,9 @@ export function registerAuctions(app: Hono<AppContext>) {
     const read = op === 'view' || op === 'art'
     if (c.req.method !== (read ? 'GET' : 'POST'))
       return c.json({ error: 'Method unavailable.' }, 405)
+    // Every write is JSON-only and same-origin. That is what makes the cookie
+    // path safe: a form-encoded cross-site POST cannot reach these routes, and
+    // the sample actor is derived from a cookie the page never reads.
     if (
       !read &&
       ((c.req.header('Origin') &&
@@ -45,6 +51,8 @@ export function registerAuctions(app: Hono<AppContext>) {
       return c.json({ error: 'Invalid request origin or format.' }, 403)
     let actor: Actor = guest
     if (sample) {
+      // The raw cookie value is never the actor id; it is hashed, so a leaked
+      // id from a response cannot be replayed as a session.
       let key = getCookie(c, 'gavel_session')
       if (!key || !uuid.test(key)) {
         if (op !== 'sample' && op !== 'prepare')
@@ -96,6 +104,8 @@ export function registerAuctions(app: Hono<AppContext>) {
     if (read) input = { lot: c.req.query('lot') }
     else {
       const raw = await c.req.text()
+      // Bodies carry at most a query, an amount and an item id. The photo
+      // lookup takes a URL, so it gets the wider bound; a bid gets 4 kB.
       if (
         raw.length >
         (['create', 'add', 'listing-photo'].includes(op) ? 24000 : 4000)

@@ -22,14 +22,21 @@ import { EmailOptIn, HostSetup, OrganizerRoom } from './Organizer'
 import { PracticeSetup, PracticeRoom } from './TimedPractice'
 import { MyBids } from './MyBids'
 import './studio.css'
+// Presence is one small websocket view and never needed for a first paint, so
+// it is split out of the entry chunk.
 const Presence = lazy(() => import('./Presence'))
 
+/** Return-to is kept in sessionStorage, not the query string: the OAuth redirect
+ *  comes back to a bare path and would otherwise drop a bidder's lot link. */
 function signIn(returnTo = location.pathname + location.search) {
   sessionStorage.setItem('gavel-return', returnTo)
   location.assign('/api/auth/social-redirect?provider=google')
 }
 export default function Studio() {
   const [query, setQuery] = useSearchParams()
+  // One page, chosen by query: `?room=` is a live or practice auction, `?host=`
+  // is setup, and `?practice=` opens the solo walkthrough. Everything else is
+  // the landing, which is the only statically prerendered route.
   const room = query.get('room') || '',
     host = query.has('host')
   const [auction, setAuction] = useState<Auction | null>(null),
@@ -289,7 +296,7 @@ export default function Studio() {
         <main className="g-main journey-welcome">
           <Art mode="welcome" />
           <section className="g-panel">
-            <h1 className="hero-title">Silent auctions</h1>
+            <h1 className="hero-title">Sealed bids, one winner.</h1>
             <p className="g-copy">
               Each bidder makes a private offer. The highest bid wins when the
               auction closes.

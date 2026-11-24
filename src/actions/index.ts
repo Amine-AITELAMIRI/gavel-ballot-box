@@ -5,8 +5,15 @@ import { resolveAuth } from '../server/http-routes'
 
 // The actor always comes from DeepSpace's verified bearer token. Both action
 // names call the same transactional operations as the solo demonstration.
+//
+// Two boundaries, deliberately: the action is the *authenticated* door the SDK
+// client uses (the route rejects a cookie-only session, so `callerJwt` is a real
+// bearer token), and the Durable Object still re-checks ownership, deadline and
+// raise rule inside the write transaction. Nothing here is trusted for those.
 function auctionAction(op: 'bid' | 'close'): ActionHandler<Env> {
   return async ({ params, env, callerJwt }) => {
+    // Signed actions only ever address a shared auction; a practice room is
+    // reachable by anyone who has the id, so it stays on the cookie routes.
     if (
       typeof params.room !== 'string' ||
       !/^a-[a-f0-9-]{36}$/.test(params.room)

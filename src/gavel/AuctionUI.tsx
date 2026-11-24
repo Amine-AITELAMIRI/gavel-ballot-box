@@ -176,6 +176,8 @@ export function ResultSummary({ lot }: { lot: Lot }) {
   )
 }
 
+/** The logged-in bidder's stand-in for the numbers: a count and one sentence.
+ *  It is the visual argument that the amounts are not merely hidden by CSS. */
 export function SealedBox({ count }: { count: number }) {
   return (
     <div className="sealed-box">

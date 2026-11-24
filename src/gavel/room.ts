@@ -21,6 +21,9 @@ export class AuctionRoom {
     this.store.setup()
     this.previews = new SharedPreviews(this.store)
   }
+  /** Every provider call goes through the app owner's credentials, never the
+   *  visitor's — an unsigned bidder cannot spend the operator's billing. Errors
+   *  are flattened to one 502 so provider messages never reach the browser. */
   private async integration<T>(
     name: string,
     body: Record<string, unknown>,
@@ -48,6 +51,8 @@ export class AuctionRoom {
         lot.title +
         '. Charcoal, olive, pale green. Illustrative placeholder. No text, no words, no letters, no writing, no logos.',
     })
+    // The image is stored inline in SQL, so cap it and require a real data URI
+    // before it can bloat the row or break the /art response.
     const image = data.base64Images?.[0]
     if (
       !image ||
@@ -66,6 +71,9 @@ export class AuctionRoom {
       Date.now(),
     )
   }
+  /** Two tabs previewing the same listing would otherwise each bill a lookup;
+   *  the map joins the in-flight request instead. Keyed on source only, since
+   *  photo URLs are the same for everyone. */
   private pendingPhotos = new Map<string, Promise<string[]>>()
   private async photos(cmd: RoomCommand) {
     const source = String(cmd.input.source ?? '')
@@ -94,6 +102,8 @@ export class AuctionRoom {
           )
     if (!saved) throw new Problem(404, 'Listing unavailable.')
     const now = Date.now()
+    // A day of cache: seller galleries churn slowly, and this is the call most
+    // likely to be repeated by someone flicking between two candidate items.
     const cached = this.store.one(
       'SELECT urls FROM listing_photos WHERE source=? AND checked>?',
       source,
@@ -103,6 +113,8 @@ export class AuctionRoom {
     const pending = this.pendingPhotos.get(source)
     if (pending) return pending
     if (this.env.DEEPSPACE_APP_ID === 'gavel-local-review') return []
+    // Count the quota inside a transaction *before* awaiting the provider, so a
+    // burst of concurrent previews cannot all pass the check and then bill.
     this.state.storage.transactionSync(() => {
       this.store.quota('photos:' + cmd.actor.id, 24, now)
       this.store.quota('photos', 120, now)
@@ -236,6 +248,9 @@ export class AuctionRoom {
       return this.previews.issue(cmd.actor.id, card)
     return this.saveDraft(cmd.actor.id, query, rarity, card, now)
   }
+  /** Starting a surprise round is create-then-fill, so a double-submit (or the
+   *  StrictMode double-mount in dev) would otherwise open two practice rooms.
+   *  The key is room + actor, and the second caller awaits the first's promise. */
   private pendingBidderRounds = new Map<string, Promise<unknown>>()
   private async startSurpriseRound(cmd: RoomCommand) {
     if (this.store.one('SELECT id FROM auctions WHERE id=?', cmd.room))
@@ -257,6 +272,8 @@ export class AuctionRoom {
     for (const n of this.store.rows(
       "SELECT * FROM notices WHERE status='pending' LIMIT 10",
     )) {
+      // Claim by flipping the row to 'sending' first: two overlapping ticks, or
+      // a retry, then skip work someone else already owns.
       const acquired = this.state.storage.transactionSync(() => {
         if (
           !this.store.one(
@@ -283,6 +300,8 @@ export class AuctionRoom {
           text: n.message,
         })
       } catch {
+        // Not 'failed': a timeout may still have delivered, so an unconfirmed
+        // notice is never re-sent and never reported as undelivered.
         status = 'unconfirmed'
       }
       this.store.rows(
@@ -309,6 +328,8 @@ export class AuctionRoom {
       if (cmd.op === 'listing-photo')
         return Response.json({ urls: await this.photos(cmd) })
       if (cmd.op === 'prepare') return Response.json(await this.discover(cmd))
+      // Art is streamed from the row rather than carried in the view payload —
+      // a 4:3 PNG is ~1 MB and would dominate every poll.
       if (path === '/art') {
         this.store.auction(cmd.room, cmd.actor)
         const row = this.store.one(
@@ -353,6 +374,7 @@ export class AuctionRoom {
     } catch (e) {
       if (e instanceof Problem)
         return Response.json({ error: e.message }, { status: e.status })
+      // Name only: storage errors can carry row values.
       console.error(
         'Auction storage failure',
         e instanceof Error ? e.name : 'unknown',
@@ -364,6 +386,9 @@ export class AuctionRoom {
     }
   }
 }
+/** One object instance (`gavel/v1`) holds every auction, which is what makes a
+ *  cross-room read like the receipt list a single query. The cost is that all
+ *  traffic serialises here; sharding by room id is the next step if it matters. */
 export function auctionStub(env: Env) {
   return env.AUCTIONS.get(env.AUCTIONS.idFromName('gavel/v1'))
 }

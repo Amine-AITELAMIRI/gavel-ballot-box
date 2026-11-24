@@ -1,4 +1,6 @@
 import type { Auction } from './model'
+
+/** Resolved lazily so a signed-out practice visit never loads the auth module. */
 export async function accessToken() {
   const { getAuthToken } = await import('deepspace')
   return getAuthToken()
@@ -8,6 +10,9 @@ export async function command(
   op: string,
   input: Record<string, unknown> = {},
 ): Promise<Auction> {
+  // Practice rooms ride the HttpOnly cookie, so they need no bearer. Signed
+  // rooms need one for identity, and a bid or close needs it for the SDK action
+  // route as well — that is where the server-side permission check lives.
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (room.startsWith('a-')) {
     const token = await accessToken()
@@ -28,6 +33,7 @@ export async function command(
     return action.data
   }
   const read = op === 'view'
+  // `no-store` because a poll must never show the sealed view from cache.
   const res = await fetch('/api/gavel/' + room + '/' + op, {
     method: read ? 'GET' : 'POST',
     headers,
@@ -65,6 +71,8 @@ export async function getListingPhotos(
   lot?: string,
   preview?: string,
 ) {
+  // A photo lookup outside a room still needs a room id, because the route
+  // derives the actor (and its quota) from it. Throwaway `s-` is enough.
   const res = await itemRequest(
     room || 's-' + crypto.randomUUID(),
     'listing-photo',
