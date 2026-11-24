@@ -159,6 +159,10 @@ name; both now follow the round itself and where the item renders.
 
 **Agent ran** — `npx deepspace test run all` and `npm run test:review`: 9 passed.
 
+**Found** — `?practice=1`, which is the link the home page itself offers, named no
+role, and the role picker starts empty — so the page it opened had no start
+button. It now arrives with the bidder role chosen.
+
 ## Next
 
 - Withdrawal before close, which needs a bid state rather than a bare row.
