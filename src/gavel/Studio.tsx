@@ -278,8 +278,7 @@ export default function Studio() {
     <div className="g-page" ref={page}>
       <header className="g-header">
         <a className="g-brand" href="/" aria-label="Gavel home">
-          <img src="/art/mark.svg" width="28" height="28" alt="" />
-          Gavel
+          <img src="/art/gavel-wordmark.png" width="127" height="46" alt="" />
         </a>
         <span className="g-context">{role}</span>
       </header>
