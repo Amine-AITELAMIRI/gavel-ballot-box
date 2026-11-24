@@ -2,7 +2,12 @@
 import { createServer } from 'node:http'
 import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
 import { spawn } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  unlinkSync as unlinkFile,
+} from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const port = Number(process.env.GAVEL_REVIEW_PORT || 5198)
@@ -116,6 +121,20 @@ await new Promise((resolve, reject) =>
   server.once('error', reject).listen(0, '127.0.0.1', resolve),
 )
 issuer = 'http://127.0.0.1:' + server.address().port
+const restoreDevVars = reviewDevVars(
+  fileURLToPath(new URL('../.dev.vars', import.meta.url)),
+  {
+    AUTH_WORKER_URL: issuer,
+    AUTH_JWT_ISSUER: issuer,
+    AUTH_JWT_PUBLIC_KEY: publicKey,
+    API_WORKER_URL: issuer,
+    PLATFORM_WORKER_URL: issuer,
+    // The owner token is a platform string, so it cannot verify against the
+    // key above; these are the fixture values the platform stand-in serves.
+    APP_OWNER_JWT: 'local-provider-fixture',
+    OWNER_USER_ID: 'preview-Organizer',
+  },
+)
 const vite = spawn(
   process.execPath,
   [
@@ -140,8 +159,58 @@ const vite = spawn(
   },
 )
 vite.once('exit', (code) => {
+  restoreDevVars()
   server.close()
   process.exit(code ?? 0)
 })
 for (const signal of ['SIGTERM', 'SIGINT'])
-  process.on(signal, () => vite.kill(signal))
+  // Restore first: a test runner kills this process with the file still in its
+  // review form, and the exit hook below may not get to run.
+  process.on(signal, () => {
+    restoreDevVars()
+    vite.kill(signal)
+  })
+// Playwright spawns this through `npm`, then kills the shell and leaves the
+// tree behind — no signal reaches us and the runner would be gone before the
+// file came back. Re-parenting is the signal: the moment our parent is no
+// longer the shell, the run is over.
+const parent = process.ppid
+const watchdog = setInterval(() => {
+  if (process.ppid === parent) return
+  clearInterval(watchdog)
+  restoreDevVars()
+  vite.kill('SIGTERM')
+  server.close()
+}, 1000)
+
+/** `.dev.vars` outranks this file's à la carte `vars`, and DeepSpace writes a
+ *  real platform into it, so the local stand-in has to win the file itself.
+ *  It is generated on every dev/test/deploy run, hence edited and put back.
+ *  A SIGKILL leaves it flavoured for review; `npm run dev` rewrites it. */
+function reviewDevVars(path, overrides) {
+  const before = existsSync(path) ? readFileSync(path, 'utf8') : null
+  const kept = []
+  // A value may span lines (the public key is a quoted PEM), so a dropped key
+  // takes its continuation lines with it: everything up to the next KEY=.
+  let dropping = false
+  for (const line of (before ?? '').split('\n')) {
+    if (/^[A-Z][A-Z0-9_]*=/.test(line)) dropping = line.slice(0, line.indexOf('=')) in overrides
+    if (!dropping) kept.push(line)
+  }
+  const block = Object.entries(overrides)
+    .map(([key, value]) => key + '=' + JSON.stringify(value))
+    .join('\n')
+  writeFileSync(path, kept.join('\n').replace(/\n+$/, '') + '\n' + block + '\n')
+  // A copy on disk as well: a runner that kills this whole tree gives the
+  // teardown hook below something to put back.
+  const backup = path + '.review-backup'
+  if (!existsSync(backup)) writeFileSync(backup, before ?? '')
+  let restored = false
+  return () => {
+    if (restored) return
+    restored = true
+    if (before === null) writeFileSync(path, '')
+    else writeFileSync(path, before)
+    if (existsSync(backup)) unlinkFile(backup)
+  }
+}

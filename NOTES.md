@@ -145,6 +145,20 @@ viewport.
 reproduced by curl above. A moved client clock only changes a countdown, because
 the deadline is decided server-side.
 
+## Nov 24 07:50 — The suite that had quietly stopped running
+
+**Found** — `npm run test:review`, the three-profile review suite the entries
+above lean on, was no longer reaching the local sign-in stand-in at all: the
+platform rewrites `.dev.vars` on every deploy, that file outranks the stand-in's
+vars, so sign-in went to real Google and every profile step timed out. The
+harness now owns the file for the length of a run and hands it back, including
+when a runner kills the whole process tree.
+
+**Also** — The smoke waits assumed a ten-second round and one hard-coded item
+name; both now follow the round itself and where the item renders.
+
+**Agent ran** — `npx deepspace test run all` and `npm run test:review`: 9 passed.
+
 ## Next
 
 - Withdrawal before close, which needs a bid state rather than a bare row.

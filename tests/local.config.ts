@@ -6,6 +6,7 @@ export default defineConfig({
   testMatch: ['smoke.spec.ts', 'api.spec.ts', 'local-review.spec.ts'],
   use: { baseURL, channel: 'chrome', headless: true },
   workers: 1,
+  globalTeardown: './teardown.local-review.ts',
   timeout: 60000,
   webServer: {
     command: 'npm run review',

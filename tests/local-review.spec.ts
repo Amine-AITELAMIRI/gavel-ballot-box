@@ -292,8 +292,9 @@ test('host chooses the item and bidder reviews the same listing in a fresh round
   await expect(page.getByRole('timer')).toBeVisible()
   await page.reload()
   await expect(page.getByText('Your private offer')).toBeVisible()
+  // The round is `BIDDER_SECONDS` long and the sealing bid lands late in it.
   await expect(page.getByRole('heading', { name: 'You won.' })).toBeVisible({
-    timeout: 14000,
+    timeout: 30000,
   })
   await expect(
     page.getByText('Your sealed offer won ' + name + '.'),

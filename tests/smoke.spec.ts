@@ -22,8 +22,10 @@ for (const [width, amount, outcome] of [
     await expect(page.getByRole('timer')).toHaveCount(0)
     await page.getByRole('button', { name: 'Start bidder round' }).click()
     await expect(page.getByRole('timer')).toBeVisible()
+    // The practice pool also draws discovered items, so the item is identified
+    // by where it renders rather than by a name.
     await expect(
-      page.getByRole('heading', { name: /camera|chronograph|headphones/i }),
+      page.getByRole('figure').first().getByRole('heading', { level: 2 }),
     ).toBeVisible()
     await page.getByLabel('Your bid (USD)').fill(String(amount))
     await page.getByRole('button', { name: 'Seal $' + amount + ' bid' }).click()
@@ -35,11 +37,15 @@ for (const [width, amount, outcome] of [
     await expect(page.getByText('Winning bid', { exact: true })).toHaveCount(0)
     await page.reload()
     await expect(page.getByText('Your private offer')).toBeVisible()
+    // The late simulated bid and the deadline are fractions of the round, so
+    // these waits track `BIDDER_SECONDS` rather than a fixed few seconds.
     await expect(page.getByText('Sam sealed a bid')).toBeVisible({
-      timeout: 9000,
+      timeout: 20000,
     })
     await expect(page.getByLabel('Your bid (USD)')).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: outcome })).toBeVisible()
+    await expect(page.getByRole('heading', { name: outcome })).toBeVisible({
+      timeout: 30000,
+    })
     await page.reload()
     await expect(page.getByRole('heading', { name: outcome })).toBeVisible()
     expect(
@@ -102,7 +108,7 @@ test('bidder who runs out of time can retry', async ({ page }) => {
   await page.goto('/?practice=bidder')
   await page.getByRole('button', { name: 'Start bidder round' }).click()
   await expect(page.getByRole('heading', { name: 'Time’s up.' })).toBeVisible({
-    timeout: 15000,
+    timeout: 30000,
   })
   await expect(page.getByLabel('Your bid (USD)')).toHaveCount(0)
   await page.getByRole('link', { name: 'Play this role again' }).click()
