@@ -7,6 +7,7 @@ import type {
   PracticeRole,
   RoomCommand,
 } from './model'
+import { BIDDER_SECONDS } from '../constants'
 import { samplePrint, type ItemCard } from './items'
 export class Problem extends Error {
   constructor(
@@ -16,6 +17,8 @@ export class Problem extends Error {
     super(message)
   }
 }
+/** Durable Object storage is a raw statement runner — no ORM. Every query is
+ *  parameterised by hand, so nothing user-supplied is interpolated into SQL. */
 type Value = string | number | null
 type Row = Record<string, Value>
 export interface Database {
@@ -42,6 +45,10 @@ function notificationEmail(input: Record<string, unknown>, actor: Actor) {
 export class AuctionStore {
   constructor(private db: Database) {}
   setup() {
+    // `bids.amount` never leaves this table until a `results` row exists for the
+    // lot: the sealed-bid rule is a schema property, not a render-time filter,
+    // so a careless view cannot leak an amount. `UNIQUE(lot,bidder)` holds one
+    // live offer per bidder, which is why a raise deletes then re-inserts.
     this.db
       .exec(`CREATE TABLE IF NOT EXISTS auctions (id TEXT PRIMARY KEY, title TEXT NOT NULL, owner TEXT NOT NULL, email TEXT, sample INTEGER NOT NULL, closes INTEGER NOT NULL, created INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS lots (id TEXT PRIMARY KEY, auction TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, source TEXT, suggestion TEXT, image TEXT);
@@ -66,6 +73,9 @@ export class AuctionStore {
   one(q: string, ...args: Value[]) {
     return this.rows(q, ...args)[0]
   }
+  /** Fixed-window counter, bucketed on the UTC day. Increment-then-check so a
+   *  rejected call still costs a slot; over-limit throws 429 and is undone by
+   *  the request boundary, never by the caller. */
   quota(bucket: string, limit: number, now: number) {
     const period = Math.floor(now / day)
     this.db.exec(
@@ -88,12 +98,18 @@ export class AuctionStore {
     if (a.owner !== actor.id)
       throw new Problem(403, 'Only the organizer can do that.')
   }
+  /** Sample auctions belong to one visitor session, so someone else's practice
+   *  room is a 404 (do not confirm it exists) while a shared room is readable by
+   *  anyone holding the link. */
   auction(id: string, actor: Actor) {
     const a = this.one('SELECT * FROM auctions WHERE id=?', id)
     if (!a || (a.sample && a.owner !== actor.id))
       throw new Problem(404, 'This auction is unavailable in this session.')
     return a
   }
+  /** Simulated bidders are stored on a schedule and only materialise into
+   *  `bids` once their arrival time has passed, so `settle` reads one table
+   *  whether or not the round was practice. */
   private receivePracticeOffers(lot: Value, now: number) {
     this.db.exec(
       `INSERT INTO bids(lot,bidder,alias,amount)
@@ -105,9 +121,15 @@ export class AuctionStore {
       now,
     )
   }
+  /** Idempotent on purpose: a cron sweep, the request that crosses the
+   *  deadline, and a host's announce can all race for the same lot and the loser
+   *  returns the winner's row untouched. Runs inside the caller's transaction —
+   *  picking a winner and publishing it must not be observable apart. */
   settle(lot: Row, a: Row, now: number) {
     if (this.one('SELECT 1 FROM results WHERE lot=?', lot.id)) return
     if (a.sample) this.receivePracticeOffers(lot.id, now)
+    // Ties go to the earlier seal, never to the later one: `seq` is the
+    // AUTOINCREMENT order, so an identical amount cannot be sniped at the horn.
     const best = this.one(
       'SELECT * FROM bids WHERE lot=? ORDER BY amount DESC,seq ASC LIMIT 1',
       lot.id,
@@ -125,6 +147,8 @@ export class AuctionStore {
       count,
       now,
     )
+    // Notices are only queued here. Sending is the cron's job, so a slow mail
+    // provider cannot hold the settle transaction open.
     if (!a.sample) {
       const message = best
         ? 'Winning bid: $' + best.amount + ' from ' + best.alias + '.'
@@ -140,6 +164,8 @@ export class AuctionStore {
       }
     }
   }
+  /** Bounded to 100 lots per tick so the first sweep after a long idle period
+   *  finishes well inside the minute before the next one is due. */
   sweep(now: number) {
     const due = this.rows(
       'SELECT l.* FROM lots l JOIN auctions a ON a.id=l.auction LEFT JOIN results r ON r.lot=l.id WHERE a.closes<=? AND r.lot IS NULL LIMIT 100',
@@ -156,6 +182,9 @@ export class AuctionStore {
       Math.floor(now / day) - 1,
     )
   }
+  /** Receipts are why a bidder can leave and come back: the sealed lot is
+   *  reached from an unsigned cookie, so the list is scoped to the actor id the
+   *  cookie hashed to, never to the path they arrived by. */
   receipts(bidder: string, now: number): BidReceipt[] {
     return this.rows(
       `SELECT a.id AS room,a.title AS auctionTitle,l.id AS lot,l.title AS itemTitle,
@@ -323,7 +352,7 @@ export class AuctionStore {
       if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10080)
         throw new Problem(422, 'Choose a deadline within seven days.')
       const role = input.role ?? 'bidder'
-      const seconds = role === 'host' ? Number(input.seconds ?? 5) : 10
+      const seconds = role === 'host' ? Number(input.seconds ?? 5) : BIDDER_SECONDS
       if (
         sample &&
         ((role !== 'bidder' && role !== 'host') ||
@@ -500,8 +529,11 @@ export class AuctionStore {
         actor.id,
       )
       if (round?.role === 'bidder') {
+        // One seal per round: a second attempt is a silent no-op rather than an
+        // error, because a double-tap on submit is far more likely than intent.
         if (previous) return this.view(a, actor, now)
-        // Give already-arrived offers their sequence numbers before accepting this bid.
+        // Bots that have already arrived take their `seq` first so the human
+        // seal cannot invent a tiebreak it did not earn.
         this.receivePracticeOffers(lot.id, now)
       }
       if (previous && Number(previous.amount) >= amount)
@@ -509,6 +541,8 @@ export class AuctionStore {
           409,
           'Your new bid must be higher than your sealed bid.',
         )
+      // Delete-then-insert, not UPDATE: the raise has to take a fresh `seq` so
+      // it loses every tie against an earlier seal at the same amount.
       this.db.exec(
         'DELETE FROM bids WHERE lot=? AND bidder=?',
         lot.id,

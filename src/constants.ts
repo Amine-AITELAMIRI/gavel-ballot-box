@@ -17,5 +17,10 @@ export const APP_ID: string = __DEEPSPACE_APP_ID__
 /** Primary scope ID for the app's RecordRoom DO */
 export const SCOPE_ID = `app:${APP_ID}`
 
+/** Bidder practice round length. Ten seconds proved too tight for a first
+ *  visit — the reader is still parsing the item when the clock expires — and the
+ *  server rejects a late seal, so a slow first run ends with no bid at all. */
+export const BIDDER_SECONDS = 20
+
 /** Roles and display config — imported from SDK (single source of truth) */
 export { ROLES, ROLE_CONFIG, type Role } from 'deepspace'

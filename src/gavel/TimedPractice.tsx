@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { BIDDER_SECONDS } from '../constants'
 import { Check, Clock3, LockKeyhole, Radio } from 'lucide-react'
 import type { Auction, PracticeRole, TimedPractice } from './model'
 import { money } from './model'
@@ -87,7 +88,7 @@ export function PracticeSetup({
                     {option === 'bidder'
                       ? fromHost
                         ? 'Bid on your host item in a new 10-second round.'
-                        : 'Enter to reveal a surprise item. You’ll have 10 seconds to seal your bid.'
+                        : 'Enter to reveal a surprise item. You’ll have 20 seconds to seal your bid.'
                       : 'Choose the item and timer, watch sealed bids arrive, then announce the winner.'}
                   </small>
                 </span>
@@ -101,7 +102,7 @@ export function PracticeSetup({
                 if (!busy && !pending && (role === 'bidder' || selection))
                   start(
                     role,
-                    role === 'host' ? Number(duration) : 10,
+                    role === 'host' ? Number(duration) : BIDDER_SECONDS,
                     role === 'host' ? selection?.id : undefined,
                     role === 'bidder' ? fromHost || undefined : undefined,
                   )
@@ -157,6 +158,10 @@ function RoundClock({
   const [remaining, setRemaining] = useState(
     Math.max(0, closesAt - practice.serverNow),
   )
+  // The countdown is anchored to the server's clock and re-based on every view,
+  // so a laptop that slept through the round comes back to the true remaining
+  // time instead of a locally drifted one. The server rejects a late seal
+  // regardless; this only keeps the numbers honest while it runs.
   useEffect(() => {
     const end = performance.now() + Math.max(0, closesAt - practice.serverNow)
     let requested = false

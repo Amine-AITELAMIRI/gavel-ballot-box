@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, it, expect, vi } from 'vitest'
 import { AuctionRoom } from './src/gavel/room'
+import { BIDDER_SECONDS } from './src/constants'
 import type { Env } from './worker'
 const provider = vi.hoisted(() => vi.fn())
 vi.mock('deepspace/worker', () => ({
@@ -222,27 +223,31 @@ describe('timed practice', () => {
     expect(result?.count).toBe(3)
     expect(run('announce', { lot }, 5100).lots[0].result).toEqual(result)
   })
-  it('seals the first bidder offer atomically and enforces the ten-second deadline', () => {
+  it('seals the first bidder offer atomically and enforces the bidder deadline', () => {
     const { run, lot } = practice('bidder', 60)
-    expect(run('view').practice?.duration).toBe(10)
+    expect(run('view').practice?.duration).toBe(BIDDER_SECONDS)
+    // Bots arrive at a quarter, a half and three quarters of the round.
     const submitted = run('bid', { lot, amount: 91 }, 2600)
-    expect(submitted.practice?.arrivals).toEqual(['Alex', 'You'])
+    expect(submitted.practice?.arrivals).toEqual(['You'])
     expect(submitted.lots[0]).toMatchObject({ myBid: 91, result: null })
+    // A second, lower offer is refused rather than queued.
     expect(run('bid', { lot, amount: 125 }, 3000).lots[0].myBid).toBe(91)
-    expect(run('view', {}, 9999).practice?.arrivals).toEqual([
-      'Alex',
+    expect(run('view', {}, 6000).practice?.arrivals).toEqual(['You', 'Alex'])
+    expect(run('view', {}, 11000).practice?.arrivals).toEqual([
       'You',
+      'Alex',
       'Riley',
-      'Sam',
     ])
-    expect(run('view', {}, 9999).lots[0].result).toBeNull()
-    expect(run('view', {}, 10000).lots[0].result).toMatchObject({
+    expect(run('view', {}, 11000).lots[0].result).toBeNull()
+    expect(run('view', {}, BIDDER_SECONDS * 1000).lots[0].result).toMatchObject({
       mine: true,
       amount: 91,
       count: 4,
     })
+    // A seal landing after the deadline is dropped rather than queued: the
+    // round expires and the lot settles on the bots alone.
     const late = practice('bidder', 5)
-    const expired = late.run('bid', { lot: late.lot, amount: 91 }, 10000)
+    const expired = late.run('bid', { lot: late.lot, amount: 91 }, 21000)
       .lots[0]
     expect(expired.myBid).toBeNull()
     expect(expired.result?.count).toBe(3)
@@ -401,7 +406,7 @@ it('starts the bidder clock after surprise discovery and keeps one item across c
     source,
     description: 'A tabletop radio.',
   })
-  expect(a.closesAt - a.practice!.serverNow).toBe(10000)
+  expect(a.closesAt - a.practice!.serverNow).toBe(BIDDER_SECONDS * 1000)
   expect(b.lots[0].id).toBe(a.lots[0].id)
   expect((await start()).closesAt).toBe(a.closesAt)
   expect(provider.mock.calls.map(([name]) => name)).toEqual([
