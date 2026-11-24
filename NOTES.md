@@ -109,9 +109,33 @@ and missing content type both 403. Late bid after the deadline dropped while the
 lot still settled. `tsc --noEmit`, `eslint .` and 17 unit tests green, on the
 deleted tree as well as this one.
 
-**Still open** — Amine's own pass on the final build. Not claimed above: two
-private windows bidding against each other, a system clock moved forward, and a
-real phone.
+## Nov 24 07:05 — Live pass on the deployment
+
+**Asked** — Amine asked for whatever would make the build worth reading, rather
+than a checklist of things already asserted elsewhere.
+
+**Agent checked, in a real browser against production** — A practice bidder round:
+the item took 2.5 s to arrive, an offer of $315 sealed, and a reload with 13 s
+left returned the same lot with the offer intact and no stale sealed view; the
+round ended with 4 bidders and that offer winning at $315. A practice host round:
+sealed bids appeared as a count at each of the quarter marks and never as amounts,
+and announcing published `{Alex, $75, 3}`. A shared auction created on the host
+dashboard, its bidder preview showing zero bid inputs, and the bidder page opened
+from the link. Both flows at 390×844 with `scrollWidth` equal to `innerWidth`.
+
+**Found** — A background tab looks frozen because the poll is gated on
+`document.visibilityState`. That is intended, but it makes a driven browser lie
+about a live view until the tab is focused.
+
+**Still open** — A second signed-in account. Google sign-in gives one identity per
+browser profile and a host cannot bid on their own auction, so two bidders have not
+yet met in production; the three-context review suite covers it locally. Neither
+round above ran on a real handset, only an emulated 390 px viewport.
+
+**Not repeated by hand, already asserted** — The tie order, the raise rule and the
+dropped late bid are in `auction.test.ts` and were reproduced by curl above.
+A moved system clock is covered the same way: the deadline is decided server-side,
+so a client clock only changes a countdown.
 
 ## Next
 
