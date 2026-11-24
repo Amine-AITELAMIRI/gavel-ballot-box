@@ -5,4 +5,11 @@
 import { Seo } from '../components/Seo'
 import { seo } from '../seo'
 import Studio from '../gavel/Studio'
-export default function Landing(){return <><Seo {...seo} path="/"/><Studio/></>}
+export default function Landing() {
+  return (
+    <>
+      <Seo {...seo} path="/" />
+      <Studio />
+    </>
+  )
+}

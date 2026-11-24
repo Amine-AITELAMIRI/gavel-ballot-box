@@ -416,8 +416,12 @@ export function registerStaticRoutes(app: Hono<AppContext>): void {
 
   app.get('*', async (c) => {
     const url = new URL(c.req.url)
-    const response = await c.env.ASSETS.fetch(c.req.raw)
-    if (response.status !== 404) return response
+    const auctionScreen = url.pathname === '/' &&
+      ['practice', 'host', 'room', 'receipts'].some((key) => url.searchParams.has(key))
+    if (!auctionScreen) {
+      const response = await c.env.ASSETS.fetch(c.req.raw)
+      if (response.status !== 404) return response
+    }
 
     if (namesAFile(url.pathname) || isPlatformReservedPath(url.pathname)) {
       return c.json({ error: 'not_found' }, 404)
@@ -428,6 +432,7 @@ export function registerStaticRoutes(app: Hono<AppContext>): void {
     // shell the build writes first; a build without it (plain SPA,
     // `deepspace dev`) misses and falls through to `/` exactly as before.
     url.pathname = SPA_SHELL_PATH
+    url.search = ''
     const shell = await c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw))
     if (shell.status !== 404) return shell
     // `/`, not `/index.html`: auto-trailing-slash redirects the explicit
