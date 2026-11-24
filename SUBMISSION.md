@@ -33,8 +33,8 @@ uploads lose to the seller's own photo that Exa already found. Messaging duplica
 the lot page. Bid withdrawal needs a bid state machine and changes the product, not
 just the code.
 
-Four is what these flows needed rather than a number to reach: each one removes a
-decision from the organizer instead of adding a feature to the list.
+Four is what these flows needed; each one takes a decision off the organizer
+instead of adding a feature to the list.
 
 ## The main tradeoff
 
@@ -64,23 +64,32 @@ had loaded, so it could expire before the item existed. It let the organizer rea
 the bid path in preview. It also left a generated assistant surface registered
 nowhere: `registerAgent` was never called and `/api/chat` 404'd in production.
 
+It also gave practice rounds ten seconds, which expired while I was still reading
+the item. They run twenty now, and the bots arrive later to fill them, so the
+round is company rather than silence. That is the kind of thing only a human
+play-through finds.
+
 ## What I verified
 
-- The sealed boundary, by `curl` against production: a bid of 315 returns
-  `myBid: 315, result: null` and no other amount; the organizer's read returns a
-  count and no amounts; after the deadline the same lot returns
-  `{winner, amount, count}`.
-- A lower second offer is refused; an identical offer gets the earlier seal, which
-  is what `ORDER BY amount DESC, seq ASC` in the settle query is for.
-- Hosts cannot bid on their own auction — the server, not the disabled input.
-- Origin mismatch and a missing `Content-Type` both 403.
-- A bid after the deadline is dropped rather than queued, and the lot still
-  settles on the cron sweep.
-- Type-check, lint and the 17 unit tests pass; the suite includes a two-bidder
-  case that asserts each caller's payload carries only their own amount.
-- Two isolated browser profiles bidding against each other, the losing side seeing
-  only its own number, and a reload mid-round returning to the same lot.
+The sealed boundary is the product, so I attacked it live rather than trusting the
+unit tests. Two `@deepspace.test` accounts signed in against production and bid
+against each other through the real forms: one sealed $120 and its view carried
+`myBid: 120, result: null` with no field for any other amount, the other sealed
+$140 and still saw only 140. A raise to 145 was accepted; a 140 after that was
+refused with "Your new bid must be higher than your sealed bid." The organizer's
+read returned "2 sealed bids" and no dollar figure. On a second lot both sealed
+$200 and the earlier seal won, so a tie resolves by arrival, not by luck. Closing
+published `{winner, amount, count}` and `mine` was true for the winner only.
 
-The 10-second bidder round in the first draft expired while I was still reading the
-item, so practice rounds now run 20 seconds, with the bots arriving later to fill
-them.
+By `curl` against production: a bid of 315 returns `myBid: 315, result: null`;
+after the deadline the same lot returns the published result. Origin mismatch and a
+missing `Content-Type` both 403. A bid after the deadline is dropped rather than
+queued and the lot still settles on the cron sweep. Hosts cannot bid on their own
+auction — the server, not the disabled input. A result email arrived in a real
+inbox from a real close, which is the only way to know the queue actually drains.
+
+Locally: two isolated browser profiles bidding against each other, the losing side
+seeing only its own number, a reload mid-round returning to the same lot. Mobile at
+390×844 with `scrollWidth` equal to `innerWidth`, on an emulated viewport — I have
+no handset. Type-check, lint and the 17 unit tests pass, including a two-bidder
+case that asserts each caller's payload carries only their own amount.

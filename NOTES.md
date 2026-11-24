@@ -138,8 +138,14 @@ about a live view until the tab is focused.
 **Found** — Test accounts sign in on production, not only against a local server,
 which is what made the two-bidder half possible without a second Google account.
 
+**Agent checked, delivery** — Closed a lot that carried a winning bid from the only
+address here that is mine, then found the resulting "Gavel · Your auction result"
+in that inbox, sent by the platform's own mailer. That is the queue, the cron
+claim and the integration in one line, and it rules out the failure mode where
+notices are written and never drained.
+
 **Still open** — A real handset; everything above ran at an emulated 390 px
-viewport.
+viewport, which is the one claim here with no hardware behind it.
 
 **Not repeated by hand** — The dropped late bid is in `auction.test.ts` and was
 reproduced by curl above. A moved client clock only changes a countdown, because
