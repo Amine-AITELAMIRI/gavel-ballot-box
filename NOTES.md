@@ -114,28 +114,36 @@ deleted tree as well as this one.
 **Asked** — Amine asked for whatever would make the build worth reading, rather
 than a checklist of things already asserted elsewhere.
 
-**Agent checked, in a real browser against production** — A practice bidder round:
-the item took 2.5 s to arrive, an offer of $315 sealed, and a reload with 13 s
-left returned the same lot with the offer intact and no stale sealed view; the
-round ended with 4 bidders and that offer winning at $315. A practice host round:
-sealed bids appeared as a count at each of the quarter marks and never as amounts,
-and announcing published `{Alex, $75, 3}`. A shared auction created on the host
-dashboard, its bidder preview showing zero bid inputs, and the bidder page opened
-from the link. Both flows at 390×844 with `scrollWidth` equal to `innerWidth`.
+**Agent checked, on production, with three real identities** — A shared auction
+hosted from the signed-in organizer, with two `@deepspace.test` accounts signing in
+against production through the platform's email sign-in. One sealed $120 and its view
+carried `myBid: 120, result: null` and no amount field of any kind. The other
+sealed $140; the first view still said 120 while the second said 140. A raise to
+145 was accepted, then a 140 was refused with "Your new bid must be higher than
+your sealed bid." The host dashboard showed "2 sealed bids" and no dollar figure.
+On a second item both sealed $200 — the earlier seal won and the loser got "You
+matched the winning bid. Gavel alice reached $200 first." Closing published
+`{winner, amount, count}` with `mine` true for the winner only.
+
+**Agent checked, practice** — Item arrival in 2.5 s, a $315 seal, a reload with
+13 s left returning the same lot with the offer intact and no stale sealed view,
+4 bidders, that offer winning. A host round showing counts at each quarter mark
+and never amounts. The bidder preview carrying zero bid inputs. Both flows at
+390×844 with `scrollWidth` equal to `innerWidth`.
 
 **Found** — A background tab looks frozen because the poll is gated on
 `document.visibilityState`. That is intended, but it makes a driven browser lie
 about a live view until the tab is focused.
 
-**Still open** — A second signed-in account. Google sign-in gives one identity per
-browser profile and a host cannot bid on their own auction, so two bidders have not
-yet met in production; the three-context review suite covers it locally. Neither
-round above ran on a real handset, only an emulated 390 px viewport.
+**Found** — Test accounts sign in on production, not only against a local server,
+which is what made the two-bidder half possible without a second Google account.
 
-**Not repeated by hand, already asserted** — The tie order, the raise rule and the
-dropped late bid are in `auction.test.ts` and were reproduced by curl above.
-A moved system clock is covered the same way: the deadline is decided server-side,
-so a client clock only changes a countdown.
+**Still open** — A real handset; everything above ran at an emulated 390 px
+viewport.
+
+**Not repeated by hand** — The dropped late bid is in `auction.test.ts` and was
+reproduced by curl above. A moved client clock only changes a countdown, because
+the deadline is decided server-side.
 
 ## Next
 
