@@ -26,8 +26,10 @@ export function PracticeSetup({
     source?: string,
   ) => void
 }) {
+  // `?practice=1` is the plain entry the home page links to and names no role;
+  // without one nothing is selected and the start button never renders.
   const [role, setRole] = useState<PracticeRole | null>(
-    initialRole === 'bidder' || initialRole === 'host' ? initialRole : null,
+    initialRole === 'host' ? 'host' : initialRole ? 'bidder' : null,
   )
   const [duration, setDuration] = useState('5')
   const [selection, setSelection] = useState<{ card: ItemCard; id?: string }>()
@@ -88,7 +90,7 @@ export function PracticeSetup({
                     {option === 'bidder'
                       ? fromHost
                         ? `Bid on your host item in a new ${BIDDER_SECONDS}-second round.`
-                        : 'Enter to reveal a surprise item. You’ll have 20 seconds to seal your bid.'
+                        : `Enter to reveal a surprise item. You’ll have ${BIDDER_SECONDS} seconds to seal your bid.`
                       : 'Choose the item and timer, watch sealed bids arrive, then announce the winner.'}
                   </small>
                 </span>
